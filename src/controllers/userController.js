@@ -5,7 +5,7 @@ import UserModel from "../models/user.js";
 
 const SECRET_KEY = process.env.SECRET_KEY;
 
-// 🚀 Signup Function
+//  Signup Function
 export const signup = async (req, res) => {
   console.log("SECRET_KEY", SECRET_KEY);
 
@@ -56,7 +56,7 @@ export const signup = async (req, res) => {
   }
 };
 
-// 🚀 Signin Function
+//  Signin Function
 export const signin = async (req, res) => {
   const { email, password } = req.body;
 

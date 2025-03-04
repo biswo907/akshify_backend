@@ -16,20 +16,49 @@ const taskHistorySchema = new mongoose.Schema(
     taskId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Task",
-      unique: true,
       required: true
     },
-    task_status: {
+    title: {
       type: String,
-      enum: ["expired", "completed"],
       required: true
+    },
+    description: String,
+    task_color: String,
+    task_font_family: String,
+    description_color: String,
+    description_font_family: String,
+    from_date: {
+      type: Date,
+      default: null
+    },
+    to_date: {
+      type: Date,
+      default: null
+    },
+    priority: {
+      type: String,
+      enum: ["low", "medium", "high"],
+      default: "medium"
+    },
+    status: {
+      type: String,
+      enum: ["pending", "in-progress", "completed", "expired"],
+      required: true
+    },
+    is_favorite: {
+      type: Boolean,
+      default: false
+    },
+    expiredAt: {
+      type: Date,
+      default: null
     },
     recorded_at: {
       type: Date,
       default: Date.now
     }
   },
-  { timestamps: false } // No need for updatedAt here
+  { timestamps: false }
 );
 
 const TaskHistoryModel = mongoose.model("TaskHistory", taskHistorySchema);

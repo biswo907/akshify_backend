@@ -3,38 +3,38 @@ import {
   createTask,
   updateTask,
   deleteTask,
-  getAllTasks,
-  getFavoriteTasks,
   getTaskHistory,
   getDeletedTasks,
-  completeTask
+  taskDetails,
+  changeStatus,
+  getActiveTasks
 } from "../controllers/taskController.js";
 import { auth } from "../middlewares/auth.js";
 
 const taskRouter = express.Router();
 
-// 🟢 Create a new task
+//  Create a new task
 taskRouter.post("/create", auth, createTask);
 
-// 🟢 Update an existing task
-taskRouter.put("/update/:id", auth, updateTask);
+//  Task Details
+taskRouter.get("/details", auth, taskDetails);
 
-// 🚀 Soft delete a task (Moves to deleted history)
-taskRouter.delete("/delete/:id", auth, deleteTask);
+//  Update an existing task
+taskRouter.put("/update", auth, updateTask);
 
-// 🟢 Retrieve all tasks for the user
-taskRouter.get("/all", auth, getAllTasks);
+//  Soft delete a task (Moves to deleted history)
+taskRouter.delete("/delete", auth, deleteTask);
 
-// ⭐ Get favorite tasks
-taskRouter.get("/favorite", auth, getFavoriteTasks);
+//  Retrieve all tasks for the user
+taskRouter.get("/active", auth, getActiveTasks);
 
-// 🟢 Retrieve task history (Completed & Expired tasks)
+//  Retrieve task history (Completed & Expired tasks)
 taskRouter.get("/history", auth, getTaskHistory);
 
-// 🗑️ Retrieve deleted tasks (Soft deleted)
+//  Retrieve deleted tasks (Soft deleted)
 taskRouter.get("/deleted-tasks", auth, getDeletedTasks);
 
-// ✅ Mark a task as completed (Moves to history)
-taskRouter.put("/complete/:id", auth, completeTask);
+//  Mark a task as completed (Moves to history)
+taskRouter.put("/change-status", auth, changeStatus);
 
 export default taskRouter;

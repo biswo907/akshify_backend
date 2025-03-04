@@ -1,21 +1,29 @@
 import mongoose from "mongoose";
 import TaskModel from "../models/task.js";
+import DeletedTaskModel from "../models/deletedTask.js";
+import TaskHistoryModel from "../models/taskHistory.js";
 
-// 🟢 GET ALL TASKS
-export const getAllTasks = async (req, res) => {
+//  GET ALL TASKS
+export const getActiveTasks = async (req, res) => {
   try {
-    const tasks = await TaskModel.find({
-      userId: req.userId,
-      status: { $ne: "deleted" }
+    // Fetch all tasks for the logged-in user
+    const tasks = await TaskModel.find({ userId: req.userId });
+
+    res.status(200).json({
+      success: true,
+      count: tasks.length,
+      tasks
     });
-    return res.status(200).json(tasks);
   } catch (error) {
-    console.error("Error:", error);
-    return res.status(500).json({ message: "Something went wrong" });
+    console.error("Error fetching active tasks:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch tasks", error: error.message });
   }
 };
 
-// 🟢 CREATE TASK
+
+
+
+//  CREATE TASK
 export const createTask = async (req, res) => {
   const {
     title,
@@ -60,93 +68,116 @@ export const createTask = async (req, res) => {
   }
 };
 
-// 🟢 UPDATE TASK
-export const updateTask = async (req, res) => {
-  const { id } = req.params;
-  const {
-    title,
-    description,
-    task_color,
-    task_font_family,
-    description_color,
-    description_font_family,
-    status,
-    is_favorite
-  } = req.body;
+//  Task Details API
+export const taskDetails = async (req, res) => {
+  const taskId = req.query.taskId ?? req.body.taskId; // Check both query and body
+
+  if (!taskId) {
+    return res.status(400).json({ message: "Task ID is required" });
+  }
 
   try {
-    const updatedTask = await TaskModel.findByIdAndUpdate(
-      id,
-      {
-        title,
-        description,
-        task_color,
-        task_font_family,
-        description_color,
-        description_font_family,
-        status,
-        is_favorite
-      },
-      { new: true }
-    );
+    const task = await TaskModel.findById(taskId);
+
+    if (!task) {
+      return res.status(404).json({ message: "Task not found" });
+    }
+
+    return res.status(200).json({ task });
+  } catch (error) {
+    console.error("Task Details Error:", error);
+    return res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
+
+//  UPDATE TASK
+export const updateTask = async (req, res) => {
+  const { id, ...updateFields } = req.body;
+
+  console.log("Task ID:", id); // Debugging log
+
+  if (!id) {
+    return res.status(400).json({ message: "Task ID is required" });
+  }
+
+  try {
+    const updatedTask = await TaskModel.findByIdAndUpdate(id, updateFields, { new: true });
 
     if (!updatedTask) {
       return res.status(404).json({ message: "Task not found" });
     }
 
-    return res
-      .status(200)
-      .json({ message: "Task Updated Successfully", task: updatedTask });
+    return res.status(200).json({ message: "Task Updated Successfully", task: updatedTask });
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error updating task:", error);
     return res.status(500).json({ message: "Something went wrong" });
   }
 };
 
-// 🚀 DELETE TASK (Move to Deleted History)
+
+//  DELETE TASK (Move to Deleted History)
 export const deleteTask = async (req, res) => {
   try {
-    const { id } = req.params;
+    const taskId = req.params.id || req.body.taskId || req.query.taskId;
 
-    // Validate if the ID is a valid ObjectId
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ error: "Invalid Task ID format" });
+    if (!taskId || !mongoose.Types.ObjectId.isValid(taskId)) {
+      return res.status(400).json({ error: "Invalid or missing Task ID" });
     }
 
-    const task = await Task.findByIdAndDelete(id);
+    // Check if task is already deleted
+    const existingDeleted = await DeletedTaskModel.findOne({ taskId });
+    if (existingDeleted) {
+      return res.status(400).json({ error: "Task is already deleted" });
+    }
 
+    // Find the task before deleting
+    const task = await TaskModel.findById(taskId);
     if (!task) {
       return res.status(404).json({ error: "Task not found" });
     }
 
-    res.status(200).json({ message: "Task deleted successfully" });
+    // Move full task data to DeletedTaskModel
+    const deletedTask = new DeletedTaskModel({
+      ...task.toObject(),
+      taskId: task._id,
+      status: "deleted",
+      deleted_at: new Date()
+    });
+
+    await deletedTask.save();
+    await TaskModel.findByIdAndDelete(taskId);
+
+    return res.status(200).json({ message: "Task deleted and moved to history" });
   } catch (error) {
     console.error("Delete Task Error:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 };
 
-// 🚀 GET DELETED TASKS
+
+//  GET DELETED TASKS
 export const getDeletedTasks = async (req, res) => {
   try {
-    const deletedTasks = await TaskModel.find({
-      userId: req.userId,
-      status: "deleted"
-    });
-    res.status(200).json(deletedTasks);
+    const deletedTasks = await DeletedTaskModel.find({ userId: req.userId });
+
+    if (!deletedTasks.length) {
+      return res.status(404).json({ message: "No deleted tasks found" });
+    }
+
+    return res.status(200).json({ deletedTasks });
   } catch (error) {
     console.error("Get Deleted Tasks Error:", error);
-    res.status(500).json({ message: "Something went wrong" });
+    return res.status(500).json({ message: "Something went wrong" });
   }
 };
 
-// 🟢 GET TASK HISTORY (Completed & Expired)
+
+
+//  GET TASK HISTORY (Completed & Expired)
 export const getTaskHistory = async (req, res) => {
   try {
-    const tasks = await TaskModel.find({
-      userId: req.userId,
-      status: { $in: ["completed", "expired"] }
-    }).select("title description status to_date createdAt updatedAt");
+    const tasks = await TaskHistoryModel.find({ userId: req.userId });
 
     res.status(200).json({
       success: true,
@@ -159,68 +190,64 @@ export const getTaskHistory = async (req, res) => {
   }
 };
 
-// 🟢 MARK TASK AS COMPLETED
-export const completeTask = async (req, res) => {
-  const { id } = req.params;
 
+
+//  Change Task Status
+export const changeStatus = async (req, res) => {
   try {
-    const task = await TaskModel.findById(id);
+    const { taskId, status } = req.body;
+
+    if (!taskId || !mongoose.Types.ObjectId.isValid(taskId)) {
+      return res.status(400).json({ error: "Invalid or missing Task ID" });
+    }
+
+    // Find the task
+    const task = await TaskModel.findById(taskId);
     if (!task) {
-      return res.status(404).json({ message: "Task not found" });
+      return res.status(404).json({ error: "Task not found" });
     }
 
-    task.status = "completed";
-    await task.save();
+    const currentDate = new Date();
 
-    return res.status(200).json({
-      message: "Task marked as completed",
-      task
-    });
+    // 🔹 If task is "in-progress" but the due date has passed, mark it as expired
+    if (task.status === "in-progress" && task.to_date && new Date(task.to_date) < currentDate) {
+      return res.status(400).json({ error: "Task expired and cannot be updated" });
+    }
+
+    // ✅ If status is "in-progress", update only the status
+    if (status === "in-progress") {
+      const updatedTask = await TaskModel.findByIdAndUpdate(
+        taskId,
+        { status },
+        { new: true }
+      );
+
+      return res.status(200).json({ message: "Task marked as in-progress", updatedTask });
+    }
+
+    // ✅ If status is "completed", move task to history and delete from TaskModel
+    if (status === "completed") {
+      const taskHistory = new TaskHistoryModel({
+        ...task.toObject(),
+        taskId: task._id,
+        status: "completed",
+        completedAt: currentDate,
+        recorded_at: currentDate
+      });
+
+      await taskHistory.save();
+      await TaskModel.findByIdAndDelete(taskId);
+
+      return res.status(200).json({ message: "Task moved to history", taskHistory });
+    }
+
+    return res.status(400).json({ error: "Invalid status update. Allowed: in-progress, completed" });
+
   } catch (error) {
-    console.error("Error:", error);
-    return res.status(500).json({ message: "Something went wrong" });
+    console.error("Change Status Error:", error);
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 };
 
-// 🟢 MARK TASK AS EXPIRED
-export const expireTask = async (req, res) => {
-  const { id } = req.params;
 
-  try {
-    const task = await TaskModel.findById(id);
-    if (!task) {
-      return res.status(404).json({ message: "Task not found" });
-    }
 
-    if (task.status === "completed") {
-      return res.status(400).json({ message: "Task is already completed" });
-    }
-
-    task.status = "expired";
-    await task.save();
-
-    return res.status(200).json({
-      message: "Task marked as expired",
-      task
-    });
-  } catch (error) {
-    console.error("Error:", error);
-    return res.status(500).json({ message: "Something went wrong" });
-  }
-};
-
-// 🟢 GET FAVORITE TASKS
-export const getFavoriteTasks = async (req, res) => {
-  try {
-    const favoriteTasks = await TaskModel.find({
-      userId: req.userId,
-      is_favorite: true,
-      status: { $ne: "deleted" }
-    });
-
-    return res.status(200).json(favoriteTasks);
-  } catch (error) {
-    console.error("Error:", error);
-    return res.status(500).json({ message: "Something went wrong" });
-  }
-};
