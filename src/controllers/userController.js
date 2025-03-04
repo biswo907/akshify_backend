@@ -21,32 +21,39 @@ export const signup = async (req, res) => {
   try {
     // 🔹 Check if the user already exists
     const existingUser = await UserModel.findOne({ email });
+    console.log("log---1", email, existingUser);
+
     if (existingUser) {
       return res.status(400).json({ message: "User Already Exists" });
     }
 
-    // 🔹 Confirm Password Validation (before hashing)
+    console.log("11");
+
     if (password !== confirm_password) {
       return res.status(400).json({ message: "Passwords do not match" });
     }
+    console.log("12");
 
-    // 🔹 Hash Password
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    console.log("333");
+
     // 🔹 Create New User
-    const newUser = await UserModel.create({
-      full_name, // ✅ Now included in signup
+    const newUser = await UserModel.insertOne({
+      full_name,
       username,
       phone,
       email,
-      password_hash: hashedPassword // ✅ Matches schema field
+      password_hash: hashedPassword
     });
+
+    console.log("New User ", newUser);
 
     // 🔹 Generate Token
     const token = jwt.sign(
       { email: newUser.email, id: newUser._id },
       SECRET_KEY,
-      { expiresIn: "1h" } // Token expires in 1 hour
+      { expiresIn: "1h" }
     );
 
     res.status(201).json({ user: newUser, token });
