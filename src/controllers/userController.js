@@ -1,4 +1,4 @@
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs"; // ✅ Use bcryptjs (safer for Node.js)
 import jwt from "jsonwebtoken";
 import "dotenv/config";
 import UserModel from "../models/user.js";
@@ -9,7 +9,14 @@ const SECRET_KEY = process.env.SECRET_KEY;
 export const signup = async (req, res) => {
   console.log("SECRET_KEY", SECRET_KEY);
 
-  const { username, phone, email, password, confirm_password } = req.body;
+  const {
+    full_name,
+    username,
+    phone,
+    email,
+    password,
+    confirm_password
+  } = req.body;
 
   try {
     // 🔹 Check if the user already exists
@@ -28,10 +35,11 @@ export const signup = async (req, res) => {
 
     // 🔹 Create New User
     const newUser = await UserModel.create({
+      full_name, // ✅ Now included in signup
       username,
       phone,
       email,
-      password: hashedPassword // Store only the hashed password
+      password_hash: hashedPassword // ✅ Matches schema field
     });
 
     // 🔹 Generate Token
@@ -64,8 +72,8 @@ export const signin = async (req, res) => {
     // 🔹 Compare Password
     const isPasswordValid = await bcrypt.compare(
       password,
-      existingUser.password
-    );
+      existingUser.password_hash
+    ); // ✅ Matches field name
     if (!isPasswordValid) {
       return res.status(400).json({ message: "Invalid Credentials" });
     }
