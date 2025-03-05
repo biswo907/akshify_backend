@@ -61,7 +61,7 @@ export const createTask = async (req, res) => {
     await newTask.save();
     return res
       .status(200)
-      .json({ message: "Task Created Successfully", task: newTask });
+      .json({ message: "Task Created Successfully", statusCode: 201 });
   } catch (error) {
     console.error("Error:", error);
     return res.status(500).json({ message: "Something went wrong" });
