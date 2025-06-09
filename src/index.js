@@ -2,8 +2,9 @@ import express from "express";
 import mongoose from "mongoose";
 import "dotenv/config";
 import cors from "cors";
-import userRouter from "./routes/user.js";
-import taskRouter from "./routes/task.js";
+import authRoutes from "./routes/authRoutes.js";
+import userRoutes from "./routes/userRoutes.js";
+import taskRoutes from "./routes/taskRoutes.js";
 
 const app = express();
 app.use(
@@ -15,8 +16,11 @@ app.use(
 );
 app.use(express.json());
 app.use(cors());
-app.use("/api/auth", userRouter);
-app.use("/api/task", taskRouter);
+
+// Mount routes
+app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/tasks", taskRoutes);
 
 app.get("/", (req, res) => {
   res.send("Hello From Biswo 💖");

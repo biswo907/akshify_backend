@@ -1,21 +1,31 @@
+// middlewares/authMiddleware.js
 import jwt from "jsonwebtoken";
 import "dotenv/config";
 
-export const auth = (req, res, next) => {
-  const SECRET_KEY = process.env.SECRET_KEY;
+const SECRET_KEY = process.env.SECRET_KEY;
 
+const auth = (req, res, next) => {
   try {
     let token = req.headers.authorization;
+
     if (token) {
-      token = token.split(" ")[1];
-      let user = jwt.verify(token, SECRET_KEY);
-      req.userId = user.id;
+      token = token.split(" ")[1]; // Remove "Bearer"
+
+      const decoded = jwt.verify(token, SECRET_KEY);
+
+      req.user = {
+        id: decoded.id,
+        type: decoded.type // "company" or "employee"
+      };
+
       next();
     } else {
-      return res.status(401).json({ message: "Unauthorised User" });
+      return res.status(401).json({ message: "Unauthorized User: No token" });
     }
   } catch (error) {
-    console.log("ERROR", error);
-    res.status(401).json({ message: "Unauthorised User" });
+    console.error("Auth Middleware Error:", error);
+    res.status(401).json({ message: "Unauthorized User: Invalid token" });
   }
 };
+
+export default auth;

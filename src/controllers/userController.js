@@ -1,100 +1,184 @@
-import bcrypt from "bcryptjs"; // ✅ Use bcryptjs (safer for Node.js)
-import jwt from "jsonwebtoken";
-import "dotenv/config";
+// controllers/userController.js
+
 import UserModel from "../models/user.js";
+import bcrypt from "bcryptjs";
 
-const SECRET_KEY = process.env.SECRET_KEY;
-
-//  Signup Function
-export const signup = async (req, res) => {
-  console.log("SECRET_KEY", SECRET_KEY);
-
-  const {
-    full_name,
-    username,
-    phone,
-    email,
-    password,
-    confirm_password
-  } = req.body;
-
+// Create Employee (Company only)
+export const createEmployee = async (req, res) => {
   try {
-    // 🔹 Check if the user already exists
-    const existingUser = await UserModel.findOne({ email });
-    console.log("log---1", email, existingUser);
+    const companyId = req.user.id; // from auth middleware
+    const companyType = req.user.type;
 
-    if (existingUser) {
-      return res.status(400).json({ message: "User Already Exists" });
+    if (companyType !== "company") {
+      return res
+        .status(403)
+        .json({ message: "Only company users can create employees" });
     }
 
-    console.log("11");
-
-    if (password !== confirm_password) {
-      return res.status(400).json({ message: "Passwords do not match" });
-    }
-    console.log("12");
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    console.log("333");
-
-    // 🔹 Create New User
-    const newUser = await UserModel.insertOne({
+    const {
       full_name,
       username,
       phone,
       email,
-      password_hash: hashedPassword
+      password,
+      confirm_password
+    } = req.body;
+
+    // Password match validation
+    if (password !== confirm_password) {
+      return res.status(400).json({ message: "Passwords do not match" });
+    }
+
+    // Check if employee already exists
+    const existingUser = await UserModel.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: "Email already registered" });
+    }
+
+    // Hash password
+    const password_hash = await bcrypt.hash(password, 10);
+
+    // Create new employee
+    const newEmployee = new UserModel({
+      full_name,
+      username,
+      phone,
+      email,
+      password_hash,
+      type: "employee",
+      companyId,
+      is_active: true
     });
 
-    console.log("New User ", newUser);
+    await newEmployee.save();
 
-    // 🔹 Generate Token
-    const token = jwt.sign(
-      { email: newUser.email, id: newUser._id },
-      SECRET_KEY,
-      { expiresIn: "1h" }
-    );
+    // Custom formatted user response
+    const responseUser = {
+      user_id: newEmployee._id,
+      full_name: newEmployee.full_name,
+      username: newEmployee.username,
+      email: newEmployee.email,
+      phone: newEmployee.phone,
+      type: newEmployee.type,
+      is_active: newEmployee.is_active,
+      companyId: newEmployee.companyId
+    };
 
-    res.status(201).json({ user: newUser, token });
+    res.status(201).json({
+      message: "Employee created successfully",
+      user: responseUser
+    });
   } catch (error) {
-    console.error("Signup Error:", error);
-    res.status(500).json({ message: "Something went wrong" });
+    console.error("Create Employee Error:", error);
+    res.status(500).json({ message: "Server error creating employee" });
   }
 };
 
-//  Signin Function
-export const signin = async (req, res) => {
-  const { email, password } = req.body;
-
+// Update User Profile (both company and employee can update their own)
+export const updateProfile = async (req, res) => {
   try {
-    // 🔹 Check if user exists
-    const existingUser = await UserModel.findOne({ email });
-    if (!existingUser) {
-      return res
-        .status(404)
-        .json({ message: `No account found with email: ${email}` });
+    const userId = req.user.id;
+    const updateData = req.body;
+
+    // Prevent changing type, companyId, is_active here
+    delete updateData.type;
+    delete updateData.companyId;
+    delete updateData.is_active;
+    delete updateData.password_hash;
+
+    // If password is being updated, hash it
+    if (updateData.password) {
+      if (updateData.password !== updateData.confirm_password) {
+        return res.status(400).json({ message: "Passwords do not match" });
+      }
+      updateData.password_hash = await bcrypt.hash(updateData.password, 10);
+      delete updateData.password;
+      delete updateData.confirm_password;
     }
 
-    // 🔹 Compare Password
-    const isPasswordValid = await bcrypt.compare(
-      password,
-      existingUser.password_hash
-    ); // ✅ Matches field name
-    if (!isPasswordValid) {
-      return res.status(400).json({ message: "Invalid Credentials" });
-    }
+    const updatedUser = await UserModel.findByIdAndUpdate(userId, updateData, {
+      new: true
+    }).select("-password_hash");
 
-    // 🔹 Generate Token
-    const token = jwt.sign(
-      { email: existingUser.email, id: existingUser._id },
-      SECRET_KEY,
-      { expiresIn: "1h" } // Token expires in 1 hour
-    );
-
-    res.status(200).json({ user: existingUser, token });
+    res
+      .status(200)
+      .json({ message: "Profile updated successfully", user: updatedUser });
   } catch (error) {
-    console.error("Signin Error:", error);
-    res.status(500).json({ message: "Something went wrong" });
+    console.error("Update Profile Error:", error);
+    res.status(500).json({ message: "Server error updating profile" });
+  }
+};
+
+// Disable Employee (soft delete) - only company can disable their employees
+export const disableEmployee = async (req, res) => {
+  try {
+    const companyId = req.user.id;
+    const companyType = req.user.type;
+
+    if (companyType !== "company") {
+      return res
+        .status(403)
+        .json({ message: "Only company users can disable employees" });
+    }
+
+    const employeeId = req.params.id;
+
+    // Check if employee belongs to this company
+    const employee = await UserModel.findOne({
+      _id: employeeId,
+      companyId,
+      type: "employee"
+    });
+    if (!employee) {
+      return res.status(404).json({
+        message: "Employee not found or does not belong to your company"
+      });
+    }
+
+    employee.is_active = false;
+    await employee.save();
+
+    res.status(200).json({ message: "Employee disabled successfully" });
+  } catch (error) {
+    console.error("Disable Employee Error:", error);
+    res.status(500).json({ message: "Server error disabling employee" });
+  }
+};
+
+// Get list of employees for the logged-in company
+export const listEmployees = async (req, res) => {
+  try {
+    const companyId = req.user.id;
+    const companyType = req.user.type;
+
+    if (companyType !== "company") {
+      return res
+        .status(403)
+        .json({ message: "Only company users can view employees" });
+    }
+
+    const employees = await UserModel.find({
+      companyId,
+      type: "employee"
+    }).select("-password_hash");
+
+    res.status(200).json({ employees });
+  } catch (error) {
+    console.error("List Employees Error:", error);
+    res.status(500).json({ message: "Server error fetching employees" });
+  }
+};
+
+// Get logged in user profile
+export const getProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const user = await UserModel.findById(userId).select("-password_hash");
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    res.status(200).json({ user });
+  } catch (error) {
+    console.error("Get Profile Error:", error);
+    res.status(500).json({ message: "Server error fetching profile" });
   }
 };
