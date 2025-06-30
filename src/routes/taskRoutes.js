@@ -3,7 +3,7 @@ import express from "express";
 import {
   createTask,
   getTasks,
-  updateTaskStatus
+  toggleTaskStatus
 } from "../controllers/taskController.js";
 import auth from "../middlewares/auth.js";
 
@@ -19,6 +19,6 @@ router.post("/create-task", auth, createTask);
 router.get("/get-all-task", auth, getTasks);
 
 // Update task (status, description, etc.)
-router.patch("/update-task/:id", updateTaskStatus);
+router.patch("/update-task", auth, toggleTaskStatus);
 
 export default router;

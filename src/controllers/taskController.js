@@ -1,37 +1,45 @@
 import UserModel from "../models/user.js";
 import TaskModel from "../models/taskModel.js";
 
-// Create Task (Both Company and Employee)
 export const createTask = async (req, res) => {
   try {
     const { id: creatorId, type } = req.user;
-    const {
-      title,
-      description,
-      to_date,
-      userId // Optional if created by company
-    } = req.body;
+    const { title, description, to_date, userId } = req.body;
 
     let assignedUserId = null;
     let isPublic = false;
-    let companyId = req.user.companyId || creatorId;
 
+    // 👇 Dynamically determine the companyId
+    let companyId;
     if (type === "company") {
-      if (!userId) {
-        isPublic = true;
-      } else {
-        assignedUserId = userId;
-      }
+      companyId = creatorId; // company is creating the task
     } else {
-      assignedUserId = creatorId;
+      if (!req.body.companyId) {
+        return res
+          .status(400)
+          .json({ message: "Missing companyId in body for employee task" });
+      }
+      companyId = req.body.companyId; // employee must send companyId in request body
     }
 
+    // 👇 Assign user logic
+    if (type === "company") {
+      if (!userId) {
+        isPublic = true; // show to all employees
+      } else {
+        assignedUserId = userId; // assigned to one employee
+      }
+    } else {
+      assignedUserId = creatorId; // employee assigns task to themselves
+    }
+
+    // 👇 Create task
     await TaskModel.create({
       title,
       description,
       to_date,
       companyId,
-      userId: assignedUserId,
+      userIds: assignedUserId ? [assignedUserId] : [],
       createdBy: creatorId,
       isPublic
     });
@@ -49,123 +57,104 @@ export const createTask = async (req, res) => {
   }
 };
 
-// Get Tasks (Company: all their tasks; Employee: only their own)
-// controllers/taskController.js
 export const getTasks = async (req, res) => {
   try {
-    const { id, type, companyId } = req.user;
+    // ✅ Auto-expire outdated tasks before fetching
+    await autoExpireTasks();
 
-    const query = { is_deleted: false };
+    const { id: userId, type } = req.user;
 
-    if (type === "employee") {
+    let query = {
+      is_deleted: false
+    };
+
+    if (type === "company") {
+      query.companyId = userId;
+    } else {
       query.$or = [
-        { userIds: id },
-        { isPublic: true, companyId },
-        { createdBy: id }
-      ];
-    } else if (type === "company") {
-      const employeeIds = await getEmployeeIdsOfCompany(id);
-      query.$or = [
-        { companyId: id }, // Tasks company created
-        { createdBy: { $in: employeeIds } } // Tasks created by employees
+        { isPublic: true },
+        { userIds: userId },
+        { createdBy: userId }
       ];
     }
 
-    const tasks = await TaskModel.find(query)
-      .populate("userIds", "full_name email")
-      .populate("companyId", "full_name email")
-      .populate("createdBy", "full_name email");
-
-    res.status(200).json({
-      status: "success",
-      tasks
-    });
+    const tasks = await TaskModel.find(query).sort({ createdAt: -1 });
+    res.status(200).json({ status: "success", tasks });
   } catch (error) {
     console.error("Get Tasks Error:", error);
-    res.status(500).json({
-      status: "fail",
-      message: "Server error fetching tasks"
-    });
+    res.status(500).json({ status: "fail", message: "Failed to get tasks" });
   }
 };
 
-// Helper to get all employees of a company
-const getEmployeeIdsOfCompany = async companyId => {
-  const employees = await UserModel.find({
-    companyId,
-    type: "employee"
-  }).select("_id");
-  return employees.map(e => e._id);
-};
-
-//  updating task status
-export const updateTaskStatus = async (req, res) => {
+export const toggleTaskStatus = async (req, res) => {
   try {
-    const { id: userId, type } = req.user;
-    const { id: taskId } = req.params;
-    const { status } = req.body;
+    const { id: userId } = req.user;
+    const { taskId, status } = req.body; // ✅ Now both come from body
 
-    const validStatuses = [
-      "pending",
-      "in-progress",
-      "completed",
-      "expired",
-      "deleted"
-    ];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ message: `Invalid status: ${status}` });
+    if (!taskId || !status) {
+      return res
+        .status(400)
+        .json({ message: "taskId and status are required" });
+    }
+
+    if (!["pending", "in-progress", "completed", "deleted"].includes(status)) {
+      return res.status(400).json({ message: "Invalid status value" });
     }
 
     const task = await TaskModel.findById(taskId);
-    if (!task) {
+    if (!task || task.is_deleted) {
       return res.status(404).json({ message: "Task not found" });
     }
 
-    // Authorization: company can update tasks of their company, employee can update own tasks
-    const isCompany =
-      type === "company" && String(task.companyId) === String(userId);
-    const isEmployee =
-      type === "employee" && String(task.userId) === String(userId);
+    const isOwner = task.createdBy.toString() === userId;
+    const isAssignee = task.userIds.map(id => id.toString()).includes(userId);
 
-    if (!isCompany && !isEmployee) {
+    if (!isOwner && !isAssignee) {
       return res
         .status(403)
-        .json({ message: "You are not authorized to update this task" });
+        .json({ message: "Unauthorized to update this task" });
     }
 
-    // Handle status change logic
+    task.status = status;
+
+    if (status === "completed") {
+      task.completedAt = new Date();
+    }
+
     if (status === "deleted") {
       task.is_deleted = true;
-      task.status = "deleted";
-    } else {
-      task.is_deleted = false;
-      task.status = status;
-
-      // Completed status
-      if (status === "completed") {
-        task.completedAt = new Date();
-      } else if (task.completedAt && status !== "completed") {
-        task.completedAt = null;
-      }
-
-      // Expired status
-      if (status === "expired") {
-        task.expiredAt = new Date();
-      } else if (task.expiredAt && status !== "expired") {
-        task.expiredAt = null;
-      }
-
-      // Reset expiredAt if deadline extended and status not expired
-      if (status !== "expired" && task.to_date && task.to_date > new Date()) {
-        task.expiredAt = null;
-      }
+      task.deletedAt = new Date();
     }
 
     await task.save();
 
-    res.status(200).json({ message: `Task status updated to ${status}`, task });
+    res.status(200).json({
+      status: "success",
+      message: `Task status updated to ${status}`
+    });
   } catch (error) {
-    console.error("Update Task Status Error:", error);
-    res.status(500).json({ message: "Server error updating task" });
+    console.error("Toggle Task Status Error:", error);
+    res
+      .status(500)
+      .json({ status: "fail", message: "Could not update status" });
   }
+};
+
+export const autoExpireTasks = async () => {
+  const now = new Date();
+  const expiredTasks = await TaskModel.updateMany(
+    {
+      status: { $ne: "completed" },
+      to_date: { $lt: now },
+      status: { $ne: "expired" },
+      is_deleted: false
+    },
+    {
+      $set: {
+        status: "expired",
+        expiredAt: now
+      }
+    }
+  );
+  console.log(`Expired ${expiredTasks.modifiedCount} tasks`);
 };

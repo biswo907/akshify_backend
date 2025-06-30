@@ -1,4 +1,3 @@
-// models/Task.js
 import mongoose from "mongoose";
 import { v4 as uuidv4 } from "uuid";
 
@@ -19,7 +18,7 @@ const taskSchema = new mongoose.Schema(
       default: ""
     },
 
-    // 👤 Assigned to employees (optional, multiple)
+    // Assigned to employees (optional, multiple)
     userIds: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -27,27 +26,27 @@ const taskSchema = new mongoose.Schema(
       }
     ],
 
-    // 🏢 Company who created or owns the task
+    // Company who created or owns the task
     companyId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      ref: "Company",
       required: true
     },
 
-    // 👤 Who created the task (company or employee)
+    // Who created the task (company or employee)
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true
     },
 
-    // 📅 Dates
+    // Dates
     to_date: Date,
     completedAt: Date,
     expiredAt: Date,
     deletedAt: Date,
 
-    // 🔁 Status
+    // Status
     status: {
       type: String,
       enum: ["pending", "in-progress", "completed", "expired", "deleted"],

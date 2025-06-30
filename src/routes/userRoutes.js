@@ -2,30 +2,30 @@
 import express from "express";
 import {
   createEmployee,
-  disableEmployee,
-  listEmployees
+  getProfile,
+  listEmployees,
+  toggleEmployeeStatus,
+  updateProfile
 } from "../controllers/userController.js";
 import auth from "../middlewares/auth.js";
 
 const router = express.Router();
 
-// All user routes require authentication
+// 🔐 All user routes require authentication
 router.use(auth);
 
-// Create employee (Company only)
-router.post("/create-employee", auth, createEmployee);
-router.get("/list-employees", auth, listEmployees);
+// 👤 Get own profile
+router.get("/profile", getProfile);
 
-// Get all employees under the logged-in company
-// router.get("/", getAllEmployees);
+// 🔁 Update own profile
+router.patch("/update-profile", updateProfile);
 
-// Get a specific employee by ID
-// router.get("/:id", getEmployeeById);
+// 👥 Create employee (Company only)
+router.post("/create-employee", createEmployee);
 
-// Update employee profile (Company or Employee)
-// router.patch("/:id", updateEmployeeProfile);
+// 📃 List all employees under this company
+router.get("/list-employees", listEmployees);
 
-// Soft-delete (disable) an employee (Company only)
-router.patch("/disable/:id", disableEmployee);
-
+// 🔄 Enable/Disable (toggle) employee status
+router.patch("/toggle-status", toggleEmployeeStatus);
 export default router;

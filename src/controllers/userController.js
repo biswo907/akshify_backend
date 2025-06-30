@@ -110,7 +110,7 @@ export const updateProfile = async (req, res) => {
 };
 
 // Disable Employee (soft delete) - only company can disable their employees
-export const disableEmployee = async (req, res) => {
+export const toggleEmployeeStatus = async (req, res) => {
   try {
     const companyId = req.user.id;
     const companyType = req.user.type;
@@ -118,30 +118,39 @@ export const disableEmployee = async (req, res) => {
     if (companyType !== "company") {
       return res
         .status(403)
-        .json({ message: "Only company users can disable employees" });
+        .json({ message: "Only company users can update employee status" });
     }
 
-    const employeeId = req.params.id;
+    const { userId, is_active } = req.body;
 
-    // Check if employee belongs to this company
+    if (!userId) {
+      return res.status(400).json({ message: "userId is required" });
+    }
+
+    if (typeof is_active !== "boolean") {
+      return res.status(400).json({ message: "is_active must be a boolean" });
+    }
+
     const employee = await UserModel.findOne({
-      _id: employeeId,
+      _id: userId,
       companyId,
       type: "employee"
     });
+
     if (!employee) {
       return res.status(404).json({
         message: "Employee not found or does not belong to your company"
       });
     }
 
-    employee.is_active = false;
+    employee.is_active = is_active;
     await employee.save();
 
-    res.status(200).json({ message: "Employee disabled successfully" });
+    const status = is_active ? "enabled" : "disabled";
+    res.status(200).json({ message: `Employee ${status} successfully` });
   } catch (error) {
-    console.error("Disable Employee Error:", error);
-    res.status(500).json({ message: "Server error disabling employee" });
+    console.error("Toggle Employee Status Error:", error);
+    res.status(500).json({ message: "Server error updating employee status" });
   }
 };
 
