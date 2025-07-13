@@ -57,9 +57,81 @@ export const createTask = async (req, res) => {
   }
 };
 
+export const updateTask = async (req, res) => {
+  try {
+    const { id: updaterId, type } = req.user;
+    const { id, title, description, to_date, userId, status } = req.body;
+
+    let assignedUserId = null;
+    let isPublic = false;
+
+    // 👇 Determine the companyId
+    let companyId;
+    if (type === "company") {
+      companyId = updaterId;
+    } else {
+      if (!req.body.companyId) {
+        return res.status(400).json({
+          message: "Missing companyId in body for employee task"
+        });
+      }
+      companyId = req.body.companyId;
+    }
+
+    // 👇 Assign user logic
+    if (type === "company") {
+      if (!userId) {
+        isPublic = true;
+      } else {
+        assignedUserId = userId;
+      }
+    } else {
+      assignedUserId = updaterId;
+    }
+
+    // 👇 Prepare update payload
+    const updatePayload = {
+      title,
+      description,
+      to_date,
+      companyId,
+      userIds: assignedUserId ? [assignedUserId] : [],
+      updatedBy: updaterId,
+      isPublic
+    };
+
+    // Only include status if provided
+    if (status) {
+      updatePayload.status = status;
+    }
+
+    // 👇 Update task
+    const updatedTask = await TaskModel.findByIdAndUpdate(id, updatePayload, {
+      new: true
+    });
+
+    if (!updatedTask) {
+      return res.status(404).json({
+        status: "fail",
+        message: "Task not found"
+      });
+    }
+
+    return res.status(200).json({
+      status: "success",
+      message: "Task updated successfully"
+    });
+  } catch (err) {
+    console.error("Update Task Error:", err);
+    return res.status(500).json({
+      status: "fail",
+      message: "Failed to update task"
+    });
+  }
+};
+
 export const getTasks = async (req, res) => {
   try {
-    // ✅ Auto-expire outdated tasks before fetching
     await autoExpireTasks();
 
     const { id: userId, type } = req.user;
@@ -78,7 +150,11 @@ export const getTasks = async (req, res) => {
       ];
     }
 
-    const tasks = await TaskModel.find(query).sort({ createdAt: -1 });
+    const tasks = await TaskModel.find(query)
+      .populate("createdBy", "full_name email id") // ✅ correct field
+      .populate("userIds", "full_name email id")
+      .sort({ createdAt: -1 });
+
     res.status(200).json({ status: "success", tasks });
   } catch (error) {
     console.error("Get Tasks Error:", error);

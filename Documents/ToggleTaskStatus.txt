@@ -1,0 +1,33 @@
+toggleTaskStatus
+📌 Purpose:
+Updates the status of a specific task (e.g., pending, in-progress, completed, or deleted).
+
+🔄 Flow Summary:
+Receives taskId and status in the request body.
+Checks if the requesting user is either the creator or an assigned user of the task.
+Validates the new status value.
+Updates the task’s status and, if applicable, sets completedAt or deletedAt.
+
+👥 Use Cases:
+🔷 Company Changing Task Status
+✅ Own created task
+Can update status of any task they created, whether assigned or public.
+Example: Move from "pending" → "in-progress" → "completed".
+
+✅ Delete a task
+Can mark task as "deleted".
+Sets is_deleted: true and records deletedAt timestamp.
+Task will no longer show up in the regular task list (getTasks excludes deleted tasks).
+
+
+🔷 Employee Changing Task Status
+✅ Assigned task
+Employee can update status of tasks assigned to them.
+Example: Mark as "in-progress" or "completed" after working on it.
+
+✅ Self-created task
+If employee created the task (personal task), they can update its status as well.
+⛔ Cannot change tasks that are:
+Public but not yet claimed or completed.
+Assigned to another employee.
+Not created by them and not assigned to them.

@@ -1,0 +1,32 @@
+✅ createTask
+📌 Purpose:
+Creates a new task in the system.
+
+🔄 Flow Summary:
+-> Receives title, description, to_date, optional userId, and companyId (if created by employee).
+-> Determines who is creating the task (company or employee).
+-> Assigns task to specific employee, or marks it as public (visible to all employees).
+-> Saves task with the appropriate visibility, creator, and assignment.
+
+👥 Use Cases:
+
+🔷 Company Creating a Task
+
+✅ Assign to specific employee
+Pass a userId (employee ID).
+Task will be visible only to that employee.
+
+✅ Create public task (visible to all employees)
+Do not provide a userId.
+Task is marked isPublic: true, shown to all employees of the company.
+When one employee completes it, it disappears for others.
+
+
+🔷 Employee Creating a Task
+
+✅ Employee creates a personal task
+userId is not needed.
+assignedUserId is automatically set to the employee’s own ID.
+Employee must pass their companyId in the request body.
+
+Task is visible only to the employee and their company (for monitoring/reporting).
