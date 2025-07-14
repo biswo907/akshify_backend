@@ -2,6 +2,7 @@
 import express from "express";
 import {
   createTask,
+  getDeletedTasks,
   getTasks,
   toggleTaskStatus,
   updateTask
@@ -20,6 +21,8 @@ router.patch("/update-task", auth, updateTask);
 
 // Get all tasks (Employee: own tasks, Company: all assigned by company)
 router.get("/get-all-task", auth, getTasks);
+
+router.get("/get-deleted-task", auth, getDeletedTasks);
 
 // Update task (status, description, etc.)
 router.patch("/update-task-status", auth, toggleTaskStatus);

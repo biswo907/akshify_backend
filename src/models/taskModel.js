@@ -39,6 +39,11 @@ const taskSchema = new mongoose.Schema(
       ref: "User",
       required: true
     },
+    completedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User", // Reference to the User who completed the task
+      default: null
+    },
 
     // Dates
     to_date: Date,
