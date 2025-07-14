@@ -100,9 +100,19 @@ export const updateTask = async (req, res) => {
       isPublic
     };
 
-    // Only include status if provided
+    // 👇 Include status and handle side effects
     if (status) {
       updatePayload.status = status;
+
+      if (status === "completed") {
+        updatePayload.completedAt = new Date();
+        updatePayload.completedBy = updaterId;
+      }
+
+      if (status === "deleted") {
+        updatePayload.is_deleted = true;
+        updatePayload.deletedAt = new Date();
+      }
     }
 
     // 👇 Update task
@@ -119,7 +129,8 @@ export const updateTask = async (req, res) => {
 
     return res.status(200).json({
       status: "success",
-      message: "Task updated successfully"
+      message: "Task updated successfully",
+      task: updatedTask
     });
   } catch (err) {
     console.error("Update Task Error:", err);
@@ -153,12 +164,42 @@ export const getTasks = async (req, res) => {
     const tasks = await TaskModel.find(query)
       .populate("createdBy", "full_name email id") // ✅ correct field
       .populate("userIds", "full_name email id")
+      .populate("completedBy", "full_name email id")
       .sort({ createdAt: -1 });
 
     res.status(200).json({ status: "success", tasks });
   } catch (error) {
     console.error("Get Tasks Error:", error);
     res.status(500).json({ status: "fail", message: "Failed to get tasks" });
+  }
+};
+
+export const getDeletedTasks = async (req, res) => {
+  try {
+    const { id: userId, type } = req.user;
+
+    let query = {
+      is_deleted: true
+    };
+
+    if (type === "company") {
+      query.companyId = userId;
+    } else {
+      query.$or = [{ userIds: userId }, { createdBy: userId }];
+    }
+
+    const tasks = await TaskModel.find(query)
+      .populate("createdBy", "full_name email id")
+      .populate("userIds", "full_name email id")
+      .populate("completedBy", "full_name email id")
+      .sort({ updatedAt: -1 });
+
+    res.status(200).json({ status: "success", tasks });
+  } catch (error) {
+    console.error("Get Deleted Tasks Error:", error);
+    res
+      .status(500)
+      .json({ status: "fail", message: "Failed to get deleted tasks" });
   }
 };
 
@@ -194,7 +235,10 @@ export const toggleTaskStatus = async (req, res) => {
     task.status = status;
 
     if (status === "completed") {
+      console.log("Setting completedBy to:", userId);
       task.completedAt = new Date();
+      task.completedBy = userId;
+      task.markModified("completedBy"); // important!
     }
 
     if (status === "deleted") {
@@ -203,6 +247,7 @@ export const toggleTaskStatus = async (req, res) => {
     }
 
     await task.save();
+    console.log("Saved task:", task);
 
     res.status(200).json({
       status: "success",
