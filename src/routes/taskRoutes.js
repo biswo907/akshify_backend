@@ -5,7 +5,8 @@ import {
   getDeletedTasks,
   getTasks,
   toggleTaskStatus,
-  updateTask
+  updateTask,
+  getUserTasks
 } from "../controllers/taskController.js";
 import auth from "../middlewares/auth.js";
 
@@ -26,5 +27,8 @@ router.get("/get-deleted-task", auth, getDeletedTasks);
 
 // Update task (status, description, etc.)
 router.patch("/update-task-status", auth, toggleTaskStatus);
+
+
+router.get("/get-user-task", auth,getUserTasks);
 
 export default router;
