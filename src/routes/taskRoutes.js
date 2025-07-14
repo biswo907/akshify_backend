@@ -4,7 +4,8 @@ import {
   createTask,
   getTasks,
   toggleTaskStatus,
-  updateTask
+  updateTask,
+  getUserTasks
 } from "../controllers/taskController.js";
 import auth from "../middlewares/auth.js";
 
@@ -23,5 +24,8 @@ router.get("/get-all-task", auth, getTasks);
 
 // Update task (status, description, etc.)
 router.patch("/update-task-status", auth, toggleTaskStatus);
+
+
+router.get("/get-user-task", auth,getUserTasks);
 
 export default router;

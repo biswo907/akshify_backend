@@ -234,3 +234,31 @@ export const autoExpireTasks = async () => {
   );
   console.log(`Expired ${expiredTasks.modifiedCount} tasks`);
 };
+
+
+export const getUserTasks = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const tasks = await TaskModel.find({
+      $or: [
+        { userIds: mongoose.Types.ObjectId(userId) },
+        { isPublic: true, userIds: { $size: 0 } }
+      ],
+      is_deleted: false
+    }).sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      message: "Data Fetched....",
+      data: tasks
+    });
+
+  } catch (error) {
+    console.error("Error", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
+  }
+}
