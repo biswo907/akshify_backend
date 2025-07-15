@@ -1,4 +1,3 @@
-import UserModel from "../models/user.js";
 import TaskModel from "../models/taskModel.js";
 
 export const createTask = async (req, res) => {
@@ -65,7 +64,7 @@ export const updateTask = async (req, res) => {
     let assignedUserId = null;
     let isPublic = false;
 
-    // 👇 Determine the companyId
+    // Determine the companyId
     let companyId;
     if (type === "company") {
       companyId = updaterId;
@@ -78,7 +77,7 @@ export const updateTask = async (req, res) => {
       companyId = req.body.companyId;
     }
 
-    // 👇 Assign user logic
+    // Assign user logic
     if (type === "company") {
       if (!userId) {
         isPublic = true;
@@ -89,7 +88,7 @@ export const updateTask = async (req, res) => {
       assignedUserId = updaterId;
     }
 
-    // 👇 Prepare update payload
+    // Prepare update payload
     const updatePayload = {
       title,
       description,
@@ -100,22 +99,20 @@ export const updateTask = async (req, res) => {
       isPublic
     };
 
-    // 👇 Include status and handle side effects
+    // Handle status update
     if (status) {
       updatePayload.status = status;
+      updatePayload.statusUpdatedBy = updaterId;
+      updatePayload.statusUpdatedAt = new Date();
 
-      if (status === "completed") {
-        updatePayload.completedAt = new Date();
-        updatePayload.completedBy = updaterId;
-      }
-
+      // Optional: status-specific flags
       if (status === "deleted") {
         updatePayload.is_deleted = true;
         updatePayload.deletedAt = new Date();
       }
     }
 
-    // 👇 Update task
+    // Update task
     const updatedTask = await TaskModel.findByIdAndUpdate(id, updatePayload, {
       new: true
     });
@@ -162,9 +159,9 @@ export const getTasks = async (req, res) => {
     }
 
     const tasks = await TaskModel.find(query)
-      .populate("createdBy", "full_name email id") // ✅ correct field
+      .populate("createdBy", "full_name email id")
       .populate("userIds", "full_name email id")
-      .populate("completedBy", "full_name email id")
+      .populate("statusUpdatedBy", "full_name email id") // ✅ replaced completedBy
       .sort({ createdAt: -1 });
 
     res.status(200).json({ status: "success", tasks });
@@ -191,23 +188,25 @@ export const getDeletedTasks = async (req, res) => {
     const tasks = await TaskModel.find(query)
       .populate("createdBy", "full_name email id")
       .populate("userIds", "full_name email id")
-      .populate("completedBy", "full_name email id")
+      .populate("statusUpdatedBy", "full_name email id") // ✅ replaced completedBy
       .sort({ updatedAt: -1 });
 
     res.status(200).json({ status: "success", tasks });
   } catch (error) {
     console.error("Get Deleted Tasks Error:", error);
-    res
-      .status(500)
-      .json({ status: "fail", message: "Failed to get deleted tasks" });
+    res.status(500).json({
+      status: "fail",
+      message: "Failed to get deleted tasks"
+    });
   }
 };
 
 export const toggleTaskStatus = async (req, res) => {
   try {
     const { id: userId } = req.user;
-    const { taskId, status } = req.body; // ✅ Now both come from body
+    const { taskId, status } = req.body;
 
+    // Basic validation
     if (!taskId || !status) {
       return res
         .status(400)
@@ -218,6 +217,7 @@ export const toggleTaskStatus = async (req, res) => {
       return res.status(400).json({ message: "Invalid status value" });
     }
 
+    // Fetch task
     const task = await TaskModel.findById(taskId);
     if (!task || task.is_deleted) {
       return res.status(404).json({ message: "Task not found" });
@@ -232,13 +232,13 @@ export const toggleTaskStatus = async (req, res) => {
         .json({ message: "Unauthorized to update this task" });
     }
 
+    // Update status and audit
     task.status = status;
+    task.statusUpdatedBy = userId;
+    task.statusUpdatedAt = new Date();
 
     if (status === "completed") {
-      console.log("Setting completedBy to:", userId);
       task.completedAt = new Date();
-      task.completedBy = userId;
-      task.markModified("completedBy"); // important!
     }
 
     if (status === "deleted") {
@@ -247,11 +247,11 @@ export const toggleTaskStatus = async (req, res) => {
     }
 
     await task.save();
-    console.log("Saved task:", task);
 
     res.status(200).json({
       status: "success",
-      message: `Task status updated to ${status}`
+      message: `Task status updated to ${status}`,
+      task
     });
   } catch (error) {
     console.error("Toggle Task Status Error:", error);
@@ -280,7 +280,6 @@ export const autoExpireTasks = async () => {
   console.log(`Expired ${expiredTasks.modifiedCount} tasks`);
 };
 
-
 export const getUserTasks = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -298,7 +297,6 @@ export const getUserTasks = async (req, res) => {
       message: "Data Fetched....",
       data: tasks
     });
-
   } catch (error) {
     console.error("Error", error);
     res.status(500).json({
@@ -306,4 +304,4 @@ export const getUserTasks = async (req, res) => {
       message: "Internal server error"
     });
   }
-}
+};

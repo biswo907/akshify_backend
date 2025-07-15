@@ -2,6 +2,7 @@
 import express from "express";
 import {
   createEmployee,
+  editEmployee,
   getProfile,
   listEmployees,
   toggleEmployeeStatus,
@@ -22,6 +23,9 @@ router.patch("/update-profile", updateProfile);
 
 // 👥 Create employee (Company only)
 router.post("/create-employee", createEmployee);
+
+// 👥 Edit employee (Company only)
+router.put("/edit-employees", auth, editEmployee);
 
 // 📃 List all employees under this company
 router.get("/list-employees", listEmployees);
