@@ -13,6 +13,7 @@ const taskSchema = new mongoose.Schema(
       type: String,
       required: true
     },
+
     description: {
       type: String,
       default: ""
@@ -39,39 +40,65 @@ const taskSchema = new mongoose.Schema(
       ref: "User",
       required: true
     },
-    completedBy: {
+
+    // Last user who updated the status (in-progress, completed, deleted, etc.)
+    statusUpdatedBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User", // Reference to the User who completed the task
+      ref: "User",
       default: null
     },
 
-    // Dates
-    to_date: Date,
-    completedAt: Date,
-    expiredAt: Date,
-    deletedAt: Date,
+    // When the status was last updated
+    statusUpdatedAt: {
+      type: Date,
+      default: null
+    },
 
-    // Status
+    // If completed, timestamp (for reports)
+    completedAt: {
+      type: Date,
+      default: null
+    },
+
+    // If deleted, timestamp
+    deletedAt: {
+      type: Date,
+      default: null
+    },
+
+    // Optional: If a task has an expiry/deadline
+    to_date: {
+      type: Date,
+      default: null
+    },
+
+    // Task Status
     status: {
       type: String,
       enum: ["pending", "in-progress", "completed", "expired", "deleted"],
       default: "pending"
     },
+
+    // Soft-delete flag
     is_deleted: {
       type: Boolean,
       default: false
     },
+
+    // If the task is visible to all employees
     isPublic: {
       type: Boolean,
       default: false
     },
+
+    // When task was assigned to someone
     assignedAt: {
       type: Date,
       default: Date.now
     }
   },
   {
-    timestamps: true
+    timestamps: true // Adds createdAt and updatedAt automatically
   }
 );
 

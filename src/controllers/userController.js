@@ -74,6 +74,77 @@ export const createEmployee = async (req, res) => {
   }
 };
 
+// Edit Employee (Company only)
+export const editEmployee = async (req, res) => {
+  try {
+    const companyId = req.user.id;
+    const companyType = req.user.type;
+
+    if (companyType !== "company") {
+      return res
+        .status(403)
+        .json({ message: "Only company users can edit employees" });
+    }
+
+    const {
+      employeeId,
+      full_name,
+      username,
+      phone,
+      email,
+      password,
+      confirm_password
+    } = req.body;
+
+    if (!employeeId) {
+      return res.status(400).json({ message: "employeeId is required" });
+    }
+
+    const employee = await UserModel.findOne({
+      _id: employeeId,
+      type: "employee",
+      companyId
+    });
+
+    if (!employee) {
+      return res.status(404).json({ message: "Employee not found" });
+    }
+
+    // Optional: Check email uniqueness
+    if (email && email !== employee.email) {
+      const emailExists = await UserModel.findOne({
+        email,
+        _id: { $ne: employeeId }
+      });
+      if (emailExists) {
+        return res.status(400).json({ message: "Email already registered" });
+      }
+      employee.email = email;
+    }
+
+    if (full_name) employee.full_name = full_name;
+    if (username) employee.username = username;
+    if (phone) employee.phone = phone;
+
+    if (password || confirm_password) {
+      if (password !== confirm_password) {
+        return res.status(400).json({ message: "Passwords do not match" });
+      }
+      employee.password_hash = await bcrypt.hash(password, 10);
+    }
+
+    await employee.save();
+
+    res.status(200).json({
+      message: "Employee updated successfully",
+      status: 200
+    });
+  } catch (error) {
+    console.error("Edit Employee Error:", error);
+    res.status(500).json({ message: "Server error editing employee" });
+  }
+};
+
 // Update User Profile (both company and employee can update their own)
 export const updateProfile = async (req, res) => {
   try {
